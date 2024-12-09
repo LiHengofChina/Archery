@@ -1,4 +1,4 @@
-version: '3'
+
 
 services:
   redis:
@@ -22,7 +22,7 @@ services:
       - "3306:3306"
     volumes:
       - "./mysql/my.cnf:/etc/mysql/my.cnf"
-      - "./mysql/datadir:/var/lib/mysql"
+      - "/home/liheng/data_mysql:/var/lib/mysql"
     environment:
       MYSQL_DATABASE: archery
       MYSQL_ROOT_PASSWORD: 123456
@@ -42,11 +42,9 @@ services:
       - "./inception/config.toml:/etc/config.toml"
 
   archery:
-    # 下方的镜像地址仅为示例, 请前往以下地址确认你需要的版本:
-    # dockerhub https://hub.docker.com/r/hhyo/archery
-    # github packages https://github.com/hhyo/Archery/pkgs/container/archery
-    # 如有需要, 也可以自行build docker 镜像, 替换为自己的镜像
-    image: hhyo/archery:v1.11.3
+
+    #image: hhyo/archery:v1.11.3 # 官方镜像
+    image: archery-custom:latest # 我的镜像
     container_name: archery
     restart: always
     depends_on:
@@ -67,3 +65,4 @@ services:
     entrypoint: "bash /opt/archery/src/docker/startup.sh"
     env_file:
       - .env
+
