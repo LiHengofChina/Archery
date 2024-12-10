@@ -3,7 +3,14 @@
 cd /opt/archery
 
 echo 切换python运行环境
-source /opt/venv4archery/bin/activate
+source /opt/archery/venv4archery/bin/activate
+
+
+echo "Virtual environment activated at: $(which python)"
+echo "Virtual environment packages: $(pip freeze)"
+
+
+
 #pip install -r requirements.txt -i https://mirrors.ustc.edu.cn/pypi/web/simple/
 
 echo 修改重定向端口
