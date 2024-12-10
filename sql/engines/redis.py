@@ -35,7 +35,7 @@ class RedisEngine(EngineBase):
                 encoding_errors="ignore",
                 decode_responses=True,
                 socket_connect_timeout=10,
-                ssl=self.instance.is_ssl,
+                ssl=self.is_ssl,
             )
         else:
             return redis.Redis(
@@ -47,7 +47,7 @@ class RedisEngine(EngineBase):
                 encoding_errors="ignore",
                 decode_responses=True,
                 socket_connect_timeout=10,
-                ssl=self.instance.is_ssl,
+                ssl=self.is_ssl,
             )
 
     name = "Redis"
@@ -130,21 +130,6 @@ class RedisEngine(EngineBase):
         if result["bad_query"]:
             result["msg"] = "禁止执行该命令！"
         return result
-
-    def processlist(self, command_type, **kwargs):
-        """获取连接信息"""
-        sql = "client list"
-        result_set = ResultSet(full_sql=sql)
-        conn = self.get_connection(db_name=0)
-        clients = conn.client_list()
-        # 根据空闲时间排序
-        sort_by = "idle"
-        reverse = False
-        clients = sorted(
-            clients, key=lambda client: client.get(sort_by), reverse=reverse
-        )
-        result_set.rows = clients
-        return result_set
 
     def query(self, db_name=None, sql="", limit_num=0, close_conn=True, **kwargs):
         """返回 ResultSet"""

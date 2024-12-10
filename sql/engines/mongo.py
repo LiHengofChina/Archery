@@ -1,6 +1,5 @@
 # -*- coding: UTF-8 -*-
-import re
-import time
+import re, time
 import pymongo
 import logging
 import traceback
@@ -287,14 +286,15 @@ class MongoEngine(EngineBase):
     def exec_cmd(self, sql, db_name=None, slave_ok=""):
         """审核时执行的语句"""
 
-        if self.port and self.host:
+        if self.user and self.password and self.port and self.host:
             msg = ""
             auth_db = self.instance.db_name or "admin"
             sql_len = len(sql)
             is_load = False  # 默认不使用load方法执行mongodb sql语句
             try:
-                if not sql.startswith("var host=") and sql_len > 4000:
-                    # 在master节点执行的情况，如果sql长度大于4000,就采取load js的方法
+                if (
+                    not sql.startswith("var host=") and sql_len > 4000
+                ):  # 在master节点执行的情况，如果sql长度大于4000,就采取load js的方法
                     # 因为用mongo load方法执行js脚本，所以需要重新改写一下sql，以便回显js执行结果
                     sql = "var result = " + sql + "\nprintjson(result);"
                     # 因为要知道具体的临时文件位置，所以用了NamedTemporaryFile模块
@@ -303,17 +303,43 @@ class MongoEngine(EngineBase):
                     )
                     fp.write(sql.encode("utf-8"))
                     fp.seek(0)  # 把文件指针指向开始，这样写的sql内容才能落到磁盘文件上
-                    cmd = self._build_cmd(
-                        db_name, auth_db, slave_ok, fp.name, is_load=True
+                    cmd = "{mongo} --quiet -u {uname} -p '{password}' {host}:{port}/{auth_db} <<\\EOF\ndb=db.getSiblingDB(\"{db_name}\");{slave_ok}load('{tempfile_}')\nEOF".format(
+                        mongo=mongo,
+                        uname=self.user,
+                        password=self.password,
+                        host=self.host,
+                        port=self.port,
+                        db_name=db_name,
+                        sql=sql,
+                        auth_db=auth_db,
+                        slave_ok=slave_ok,
+                        tempfile_=fp.name,
                     )
                     is_load = True  # 标记使用了load方法，用来在finally里面判断是否需要强制删除临时文件
                 elif (
                     not sql.startswith("var host=") and sql_len < 4000
                 ):  # 在master节点执行的情况， 如果sql长度小于4000,就直接用mongo shell执行，减少磁盘交换，节省性能
-                    cmd = self._build_cmd(db_name, auth_db, slave_ok, sql=sql)
+                    cmd = "{mongo} --quiet -u {uname} -p '{password}' {host}:{port}/{auth_db} <<\\EOF\ndb=db.getSiblingDB(\"{db_name}\");{slave_ok}printjson({sql})\nEOF".format(
+                        mongo=mongo,
+                        uname=self.user,
+                        password=self.password,
+                        host=self.host,
+                        port=self.port,
+                        db_name=db_name,
+                        sql=sql,
+                        auth_db=auth_db,
+                        slave_ok=slave_ok,
+                    )
                 else:
-                    cmd = self._build_cmd(
-                        db_name, auth_db, sql=sql, slave_ok="rs.slaveOk();"
+                    cmd = "{mongo} --quiet -u {user} -p '{password}' {host}:{port}/{auth_db} <<\\EOF\nrs.slaveOk();{sql}\nEOF".format(
+                        mongo=mongo,
+                        user=self.user,
+                        password=self.password,
+                        host=self.host,
+                        port=self.port,
+                        db_name=db_name,
+                        sql=sql,
+                        auth_db=auth_db,
                     )
                 p = subprocess.Popen(
                     cmd,
@@ -345,42 +371,6 @@ class MongoEngine(EngineBase):
                     fp.close()
         return msg
 
-    # 用来进行判断是否有用户名与密码以及是否需要临时文件的情况，进而返回要执行的mongo命令
-    def _build_cmd(
-        self, db_name, auth_db, slave_ok="", tempfile_=None, sql=None, is_load=False
-    ):
-        # 提取公共参数
-        common_params = {
-            "mongo": "mongo",
-            "host": self.host,
-            "port": self.port,
-            "db_name": db_name,
-            "auth_db": auth_db,
-            "slave_ok": slave_ok,
-        }
-        if is_load:
-            cmd_template = (
-                "{mongo} --quiet {auth_options} {host}:{port}/{auth_db} <<\\EOF\n"
-                "db=db.getSiblingDB('{db_name}');{slave_ok}load('{tempfile_}')\nEOF"
-            )
-            # 长度超限使用loadjs的方式运行，使用临时文件
-            common_params["tempfile_"] = tempfile_
-        else:
-            cmd_template = (
-                "{mongo} --quiet {auth_options} {host}:{port}/{auth_db} <<\\EOF\n"
-                "db=db.getSiblingDB('{db_name}');{slave_ok}{sql}\nEOF"
-            )
-            # 长度不超限直接mongo shell，无需临时文件
-            common_params["sql"] = sql
-        # 如果有账号密码，则添加选项
-        if self.user and self.password:
-            common_params["auth_options"] = "-u {uname} -p '{password}'".format(
-                uname=self.user, password=self.password
-            )
-        else:
-            common_params["auth_options"] = ""
-        return cmd_template.format(**common_params)
-
     def get_master(self):
         """获得主节点的port和host"""
 
@@ -397,7 +387,7 @@ class MongoEngine(EngineBase):
 
         sql = """var host=""; rs.status().members.forEach(function(item) {i=1; if (item.stateStr =="SECONDARY") \
         {host=item.name } }); print(host);"""
-        slave_msg = self.exec_cmd(sql, db_name=self.db_name)
+        slave_msg = self.exec_cmd(sql)
         # 如果是阿里云的云mongodb，会获取不到备节点真实的ip和端口，那就干脆不获取，直接用主节点来执行sql
         # 如果是自建mongodb，获取到备节点的ip是192.168.1.33:27019这样的值；但如果是阿里云mongodb，获取到的备节点ip是SECONDARY、hiddenNode这样的值
         # 所以，为了使代码更加通用，通过有无冒号来判断自建Mongod还是阿里云mongdb；没有冒号就判定为阿里云mongodb，直接返回false；
@@ -534,8 +524,8 @@ class MongoEngine(EngineBase):
         # 执行语句
         for check_sql in sp_sql:
             alert = ""  # 警告信息
-            check_sql = check_sql.strip()
             if not check_sql == "" and check_sql != "\n":
+                check_sql = check_sql.strip()
                 # check_sql = f'''{check_sql}'''
                 # check_sql = check_sql.replace('\n', '') #处理成一行
                 # 支持的命令列表
@@ -805,25 +795,15 @@ class MongoEngine(EngineBase):
     def get_connection(self, db_name=None):
         self.db_name = db_name or self.instance.db_name or "admin"
         auth_db = self.instance.db_name or "admin"
+        self.conn = pymongo.MongoClient(
+            self.host,
+            self.port,
+            authSource=auth_db,
+            connect=True,
+            connectTimeoutMS=10000,
+        )
         if self.user and self.password:
-            self.conn = pymongo.MongoClient(
-                self.host,
-                self.port,
-                username=self.user,
-                password=self.password,
-                authSource=auth_db,
-                connect=True,
-                connectTimeoutMS=10000,
-            )
-        else:
-            self.conn = pymongo.MongoClient(
-                self.host,
-                self.port,
-                authSource=auth_db,
-                connect=True,
-                connectTimeoutMS=10000,
-            )
-
+            self.conn[self.db_name].authenticate(self.user, self.password, auth_db)
         return self.conn
 
     def close(self):
@@ -848,10 +828,9 @@ class MongoEngine(EngineBase):
         result = ResultSet()
         conn = self.get_connection()
         try:
-            db_list = conn.list_database_names()
+            result.rows = conn.list_database_names()
         except OperationFailure:
-            db_list = [self.db_name]
-        result.rows = db_list
+            result.rows = [self.db_name]
         return result
 
     def get_all_tables(self, db_name, **kwargs):
@@ -1210,7 +1189,7 @@ class MongoEngine(EngineBase):
                     cols.append(key)
         return cols
 
-    def processlist(self, command_type, **kwargs):
+    def current_op(self, command_type):
         """
         获取当前连接信息
 
@@ -1252,18 +1231,6 @@ class MongoEngine(EngineBase):
                         operation["client"] = operation["clientMetadata"]["mongos"][
                             "client"
                         ]
-
-                    # 获取此会话的用户名
-                    effective_users_key = "effectiveUsers_user"
-                    effective_users = operation.get("effectiveUsers", [])
-                    if isinstance(effective_users, list) and effective_users:
-                        first_user = effective_users[0]
-                        if isinstance(first_user, dict):
-                            operation[effective_users_key] = first_user.get("user", [])
-                        else:
-                            operation[effective_users_key] = None
-                    else:
-                        operation[effective_users_key] = None
 
                     # client_s 只是处理的mongos，并不是实际客户端
                     # client 在sharding获取不到？

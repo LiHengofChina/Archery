@@ -643,6 +643,16 @@ class OracleEngine(EngineBase):
             result["msg"] = keyword_warning
         return result
 
+    def filter_sql(self, sql="", limit_num=0):
+        sql_lower = sql.lower()
+        # 对查询sql增加limit限制
+        if re.match(r"^select|^with", sql_lower) and not (
+            re.match(r"^select\s+sql_audit.", sql_lower)
+            and sql_lower.find(" sql_audit where rownum <= ") != -1
+        ):
+            sql = f"select sql_audit.* from ({sql.rstrip(';')}) sql_audit where rownum <= {limit_num}"
+        return sql.strip()
+
     def query(
         self,
         db_name=None,
@@ -1451,7 +1461,7 @@ class OracleEngine(EngineBase):
             self.close()
         return result
 
-    def processlist(self, command_type, **kwargs):
+    def session_list(self, command_type):
         """获取会话信息"""
         base_sql = """select 
                        s.sid,

@@ -329,9 +329,8 @@ class GoInceptionEngine(EngineBase):
                     table_ref.extend(
                         [
                             {
-                                "schema": snode["Source"].get("Schema", {}).get("O")
-                                or db_name,
-                                "name": snode["Source"].get("Name", {}).get("O", ""),
+                                "schema": snode["Source"]["Schema"]["O"] or db_name,
+                                "name": snode["Source"]["Name"]["O"],
                             }
                             for snode in snodes
                         ]

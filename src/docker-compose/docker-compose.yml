@@ -1,4 +1,4 @@
-
+version: '3'
 
 services:
   redis:
@@ -65,4 +65,3 @@ services:
     entrypoint: "bash /opt/archery/src/docker/startup.sh"
     env_file:
       - .env
-
