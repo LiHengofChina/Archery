@@ -62,6 +62,7 @@ services:
       - "./archery/sql/migrations:/opt/archery/sql/migrations"
       - "./archery/logs:/opt/archery/logs"
       - "./archery/keys:/opt/archery/keys"
+      - "./.env:/opt/archery/.env"  # 添加这行，确保容器能够访问到 .env 文件
     entrypoint: "bash /opt/archery/src/docker/startup.sh"
     env_file:
       - .env
