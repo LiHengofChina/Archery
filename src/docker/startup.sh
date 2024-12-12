@@ -3,7 +3,7 @@
 cd /opt/archery
 
 echo 切换python运行环境
-source /opt/archery/venv4archery/bin/activate
+source /opt/venv4archery/bin/activate
 
 
 echo "Virtual environment activated at: $(which python)"
