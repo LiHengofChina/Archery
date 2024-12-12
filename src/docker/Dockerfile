@@ -23,11 +23,18 @@ RUN apt-get install -yq --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/cache/apt/* /root/.cache
 
+
+
+
+
+
+#镜像自带有python的虚拟环境
 # 创建虚拟环境并激活，安装依赖
-RUN python -m venv /opt/archery/venv4archery && \
-    /opt/archery/venv4archery/bin/pip install --upgrade pip && \
-    /opt/archery/venv4archery/bin/pip install -r /opt/archery/requirements.txt --index-url=https://pypi.tuna.tsinghua.edu.cn/simple && \
-    /opt/archery/venv4archery/bin/pip install "redis>=4.1.0"
+RUN source /opt/venv4archery/bin/activate && \ 
+    /opt/venv4archery/bin/pip install --upgrade pip && \
+    /opt/venv4archery/bin/pip install -r /opt/archery/requirements.txt --index-url=https://pypi.tuna.tsinghua.edu.cn/simple && \
+    /opt/venv4archery/bin/pip install "redis>=4.1.0"
+
 
 # 复制配置文件和插件
 RUN cp -f /opt/archery/src/docker/nginx.conf /etc/nginx/ && \
