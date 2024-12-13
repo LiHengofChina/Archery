@@ -1,6 +1,10 @@
 #!/bin/bash
 
 
+mkdir -p mkdir /opt/logs
+mkdir -p mkdir /opt/archery/logs
+
+
 
 # 收集所有的静态文件到STATIC_ROOT
 source /opt/venv4archery/bin/activate
